@@ -16,10 +16,11 @@
 import pylab as pl
 import pymc as pm
 from numpy import *
+import numpy as np
 
 __all__ = ['make_model','make_MCMC']
 
-def make_model(datasets):
+def make_model(datasets, a_pred):
     "Datasets should be a list of record arrays with columns [a_lo,a_hi,pos,neg]"
 
     def binom_deviance(n,y,p):
@@ -73,29 +74,29 @@ def make_model(datasets):
     
         safe_name = name.replace('.','_')
     
-        P_prime_now = pm.Beta('P_prime_%s'%safe_name,3.,3.)
-        p_vec_now = pm.MvNormalChol('p_vec_%s'%safe_name, p_mean, cholfac)
-        p_vec_list.append(p_vec_now)
-        P_prime_list.append(P_prime_now)
+        P_prime_list.append(pm.Beta('P_prime_%s'%safe_name,3.,3.))
+        p_vec_list.append(pm.MvNormalChol('p_vec_%s'%safe_name, p_mean, cholfac))
+            
+        b = pm.Lambda('b_%s'%safe_name, lambda p_vec = p_vec_list[-1]: 1./exp(p_vec[0]))
     
-        b = pm.Lambda('b', lambda p_vec = p_vec_now: 1./exp(p_vec[0]))
+        # if methods[name] == 'Microscopy':        
+        
+        # alpha, s and c depend on p_vec[1:4]
+        c = pm.Lambda('c_%s'%safe_name, lambda p_vec = p_vec_list[-1]: 1./exp(p_vec[1]))
+        alph = pm.Lambda('alph_%s'%safe_name, lambda p_vec = p_vec_list[-1]: exp(p_vec[2]))
+        s = pm.Lambda('s_%s'%safe_name, lambda p_vec = p_vec_list[-1]: pm.invlogit(p_vec[3]))
     
-        if methods[name] == 'Microscopy':        
+        # elif methods[name] == 'RDT':
+        # 
+        #     # alpha, s and c depend on p_vec[4:7]
+        #     c = pm.Lambda('c', lambda p_vec = p_vec_now: 1./exp(p_vec[4]))
+        #     alph = pm.Lambda('alph', lambda p_vec = p_vec_now: exp(p_vec[5]))
+        #     s = pm.Lambda('s', lambda p_vec = p_vec_now: pm.invlogit(p_vec[6]))        
         
-            # alpha, s and c depend on p_vec[1:4]
-            c = pm.Lambda('c', lambda p_vec = p_vec_now: 1./exp(p_vec[1]))
-            alph = pm.Lambda('alph', lambda p_vec = p_vec_now: exp(p_vec[2]))
-            s = pm.Lambda('s', lambda p_vec = p_vec_now: pm.invlogit(p_vec[3]))
-    
-        elif methods[name] == 'RDT':
+        age_bin_ctrs = (datasets[name].a_hi+datasets[name].a_lo)/2.
         
-            # alpha, s and c depend on p_vec[4:7]
-            c = pm.Lambda('c', lambda p_vec = p_vec_now: 1./exp(p_vec[4]))
-            alph = pm.Lambda('alph', lambda p_vec = p_vec_now: exp(p_vec[5]))
-            s = pm.Lambda('s', lambda p_vec = p_vec_now: pm.invlogit(p_vec[6]))        
-        
-        @pm.deterministic
-        def this_F(c=c, alph=alph, a=age_bin_ctrs[name], s=s):
+        @pm.deterministic(name='F_%s'%safe_name)
+        def this_F(c=c, alph=alph, a=age_bin_ctrs, s=s):
             """
             The function F, which gives detection probability.
             """
@@ -104,25 +105,22 @@ def make_model(datasets):
             where_greater = where(a>=alph)
             out[where_greater] = (1.-s*(1.-exp(-c*(a-alph))))[where_greater]
             return out
-        this_F.__name__ = 'F_%s'%safe_name
         
-        @pm.deterministic
-        def this_P(P_prime=P_prime_now, b=b, a=age_bin_ctrs[name], F=this_F):
+        @pm.deterministic(name='P_%s'%safe_name)
+        def this_P(P_prime=P_prime_list[-1], b=b, a=age_bin_ctrs, F=this_F):
             """
             The function P, which gives probability of a detected infection.
             """
             return P_prime * (1.-exp(-b*a)) * F
-        this_P.__name__ = 'P_%s'%safe_name
     
         Fs.append(this_F)
         Ps.append(this_P)
 
         #Data
-        this_data = pm.Binomial('data_%s'%safe_name, n=datasets[name].N, p=this_P, value=datasets[name].pos, isdata=True)
-        data_list.append(this_data)
+        data_list.append(pm.Binomial('data_%s'%safe_name, n=datasets[name].pos+datasets[name].neg, p=this_P, value=datasets[name].pos, observed=True))
     
         # Initialize chain at MAP estimates to shorten burnin.
-        M_start = pm.MAP([p_vec_now,P_prime_now,this_data])
+        M_start = pm.MAP([p_vec_list[-1],P_prime_list[-1],data_list[-1]])
         M_start.fit()
 
     # Samples from predictive distribution of parameters.
@@ -133,7 +131,7 @@ def make_model(datasets):
     s_pred = pm.Lambda('s', lambda p_vec = p_pred: pm.invlogit(p_vec[3]))
 
     @pm.deterministic
-    def F_pred(c=c_pred, alph=alph_pred, a=a, s=s_pred):
+    def F_pred(c=c_pred, alph=alph_pred, a=a_pred, s=s_pred):
         """
         A sample from the predictive distribution of F.
         """
@@ -144,7 +142,7 @@ def make_model(datasets):
         return out
 
     @pm.deterministic
-    def P_pred(P_prime=1., b=b_pred, a=a, F=F_pred):
+    def P_pred(P_prime=1., b=b_pred, a=a_pred, F=F_pred):
         """
         A sample from the predictive distribuiton of P.
         """
@@ -153,10 +151,12 @@ def make_model(datasets):
     return locals()
 
 
-def make_MCMC(datasets, dbname):
-    M = pm.MCMC(make_model(datasets), dbname=dbname, db='hdf5', dbcomplevel=1, dbcomplib='zlip')
+def make_MCMC(datasets, a_pred, dbname):
+    M = pm.MCMC(make_model(datasets, a_pred), dbname=dbname, db='hdf5', dbcomplevel=1, dbcomplib='zlib')
     M.use_step_method(pm.AdaptiveMetropolis, [M.p_mean, M.R1, M.R2, M.R3, M.sigma], 
         scales={M.p_mean: .01*ones(7), M.R1: .01*ones(6), M.R2: .01*ones(3), M.R3: .01*ones(3), M.sigma: .01*ones(7)})
 
     for i in xrange(len(datasets)):
         M.use_step_method(pm.AdaptiveMetropolis, [M.p_vec_list[i],M.P_prime_list[i]], scales={M.p_vec_list[i]: .001*ones(7), M.P_prime_list[i]: [.001]}, delay=10000)
+
+    return M

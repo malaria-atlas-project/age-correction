@@ -1,3 +1,3 @@
-from age_dist_model import *
-from age_pr_model import *
+import age_dist_model
+import age_pr_model
 from correction_factors import *
