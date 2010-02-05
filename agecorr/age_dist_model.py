@@ -18,12 +18,11 @@ import pymc as pm
 from pymc.sandbox import GibbsStepMethods
 from pymc.sandbox.GibbsStepMethods import DirichletMultinomial
 from numpy import *
-from age_pr_datasets import *
 
 __all__ = ['make_model', 'make_MCMC']
 
 def make_model(datasets):
-    "Datasets should be a list of record arrays with columns [a,pos,neg]"
+    "Datasets should be a list of record arrays with columns [a_lo,a_hi,pos,neg]"
 
     N_pops = len(datasets)
     S_guess = exp(-a/20.)
@@ -67,7 +66,7 @@ def make_model(datasets):
     
     return locals()
 
-def make_mcmc(datasets, dbname)    
+def make_MCMC(datasets, dbname):
     M = pm.MCMC(make_model(datasets), db='hdf5',dbcomplevel=1, dbcomplib='zlib', dbname=dbname)
 
     M.use_step_method(pm.Metropolis, alph, sig=.05)

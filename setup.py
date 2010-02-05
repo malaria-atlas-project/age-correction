@@ -19,6 +19,8 @@ from numpy.distutils.misc_util import Configuration
 import os
 config = Configuration('agecorr',parent_package=None,top_path=None)
 
+config.add_extension(name='cf_helper',sources=['agecorr/cf_helper.f'])
+
 config.packages = ["agecorr"]
 
 if __name__ == '__main__':

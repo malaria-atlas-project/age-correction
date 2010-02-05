@@ -16,11 +16,12 @@
 import pylab as pl
 import pymc as pm
 from numpy import *
-from age_pr_datasets import *
 
-__all__ = ['make_model','make_mcmc']
+__all__ = ['make_model','make_MCMC']
 
 def make_model(datasets):
+    "Datasets should be a list of record arrays with columns [a_lo,a_hi,pos,neg]"
+
     def binom_deviance(n,y,p):
         y_hat = n*p
         return 2.*sum((y*log(y/y_hat))[where(y>0)]) + 2.*sum(((n-y) * log(n-y) / (n-y_hat))[where(y<n)])
@@ -152,7 +153,7 @@ def make_model(datasets):
     return locals()
 
 
-def make_mcmc(datasets, dbname):
+def make_MCMC(datasets, dbname):
     M = pm.MCMC(make_model(datasets), dbname=dbname, db='hdf5', dbcomplevel=1, dbcomplib='zlip')
     M.use_step_method(pm.AdaptiveMetropolis, [M.p_mean, M.R1, M.R2, M.R3, M.sigma], 
         scales={M.p_mean: .01*ones(7), M.R1: .01*ones(6), M.R2: .01*ones(3), M.R3: .01*ones(3), M.sigma: .01*ones(7)})
