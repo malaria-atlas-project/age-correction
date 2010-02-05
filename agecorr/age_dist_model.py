@@ -15,14 +15,40 @@
 
 
 import pymc as pm
+import numpy as np
 from pymc.sandbox import GibbsStepMethods
 from pymc.sandbox.GibbsStepMethods import DirichletMultinomial
 from numpy import *
 
 __all__ = ['make_model', 'make_MCMC']
 
-def make_model(datasets):
+def find_age_bins(a, a_lo, a_hi):
+    
+    slices = []
+    bin_ctrs = []
+
+    for a_tup in zip(a_lo, a_hi):
+        i_min = np.where(a<=a_tup[0])[0][-1]
+        i_max = np.where(a>=a_tup[1])[0]
+        if len(i_max)==0:
+            i_max = len(a)-1
+        else:
+            i_max = i_max[0]
+        slices.append(slice(i_min, i_max))
+        
+        
+        local_a = a[i_min:i_max+1]
+        bin_ctrs.append((a_tup[0] + a_tup[1])/2.)
+        
+    return slices, np.array(bin_ctrs)
+
+def make_model(datasets, a):
     "Datasets should be a list of record arrays with columns [a_lo,a_hi,pos,neg]"
+
+    age_bin_ctrs = {}
+    age_slices = {}
+    for place in datasets.iterkeys():
+        age_slices[place], age_bin_ctrs[place] = find_age_bins(a, datasets[place].a_lo, datasets[place].a_hi)
 
     N_pops = len(datasets)
     S_guess = exp(-a/20.)
@@ -50,7 +76,7 @@ def make_model(datasets):
     
         this_dataset = datasets[name]
     
-        @pm.deterministic
+        @pm.deterministic(trace=False)
         def this_asc_slice(asc=asc, slices = age_slices[name], dataset=this_dataset):
             out = []
             for i in xrange(len(dataset)):
@@ -58,18 +84,20 @@ def make_model(datasets):
             out = array(out)
             return out
     
-        S_now = pm.Dirichlet(('S_%s'%name).replace('.','_'), this_asc_slice)
-        S.append(S_now)
-        data_list.append(pm.Multinomial('data',n=sum(this_dataset.N),p=S_now,value=this_dataset.N,isdata=True))
+        S.append(pm.Dirichlet(('S_%s'%name).replace('.','_'), this_asc_slice))
+        N = this_dataset.pos+this_dataset.neg
+        data_list.append(pm.Multinomial('data',n=sum(N),p=S[-1],value=N,observed=True))
     
     S_pred = pm.Dirichlet('S_pred',asc)
     
     return locals()
 
-def make_MCMC(datasets, dbname):
-    M = pm.MCMC(make_model(datasets), db='hdf5',dbcomplevel=1, dbcomplib='zlib', dbname=dbname)
+def make_MCMC(datasets, a, dbname):
+    M = pm.MCMC(make_model(datasets,a), db='hdf5',dbcomplevel=1, dbcomplib='zlib', dbname=dbname)
 
-    M.use_step_method(pm.Metropolis, alph, sig=.05)
+    M.use_step_method(pm.Metropolis, M.alph, proposal_sd=.05)
 
     for i in xrange(len(datasets)):    
         M.use_step_method(DirichletMultinomial, M.S[i])
+
+    return M

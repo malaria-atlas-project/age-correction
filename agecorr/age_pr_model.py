@@ -13,12 +13,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+
 import pylab as pl
 import pymc as pm
 from numpy import *
 import numpy as np
 
+
 __all__ = ['make_model','make_MCMC']
+
 
 def make_model(datasets, a_pred):
     "Datasets should be a list of record arrays with columns [a_lo,a_hi,pos,neg]"
