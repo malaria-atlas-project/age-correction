@@ -15,6 +15,7 @@
 
 from tables import *
 from numpy import *
+import numpy as np
 from pymc import invlogit, logit
 from pymc.flib import logsum
 from cf_helper import cfh, cfhs
@@ -53,13 +54,14 @@ def two_ten_factors(N, P_trace, S_trace, F_trace):
             
     return factors
 
-def age_corr_factors_from_limits(a_lo, a_hi, N, P_trace, S_trace, F_trace):
+def age_corr_factors_from_limits(a_lo, a_hi, N, a, P_trace, S_trace, F_trace):
     p_indices = random.randint(P_trace.shape[0], size=N)
     S_indices = random.randint(S_trace.shape[0], size=N)
     
     P_samps = P_trace[p_indices]
     F_samps = F_trace[p_indices]
-    S_samps = S_trace[S_indices,0,:]
+    S_samps = S_trace[S_indices]
+    S_samps = np.hstack((S_samps, np.atleast_2d(1-S_samps.sum(axis=1)).T))    
     
     a_index_min = np.where(a<=a_lo)[0][-1]
     a_index_max = np.where(a>=a_hi)[0]
@@ -72,14 +74,14 @@ def age_corr_factors_from_limits(a_lo, a_hi, N, P_trace, S_trace, F_trace):
     for j in xrange(N):
         P = P_trace[p_indices[j],a_index_min:a_index_max+1]
         F = F_trace[p_indices[j],a_index_min:a_index_max+1]
-        S = S_trace[S_indices[j],0,a_index_min:a_index_max+1]
+        S = S_trace[S_indices[j],a_index_min:a_index_max+1]
 
         factors[j] = sum(S * P * F) / sum(S)
     return factors
     
 
 
-def age_corr_factors(lo_age, up_age, N, P_trace, S_trace, F_trace):
+def age_corr_factors(lo_age, up_age, N, a, P_trace, S_trace, F_trace):
     """
     factors = age_corr_factors(lo_age, up_age, N)
     
@@ -94,7 +96,8 @@ def age_corr_factors(lo_age, up_age, N, P_trace, S_trace, F_trace):
     
     P_samps = P_trace[p_indices]
     F_samps = F_trace[p_indices]
-    S_samps = S_trace[S_indices,0,:]
+    S_samps = S_trace[S_indices]
+    S_samps = np.hstack((S_samps, np.atleast_2d(1-S_samps.sum(axis=1)).T))
                 
     for i in xrange(N_recs):
         
@@ -108,7 +111,7 @@ def age_corr_factors(lo_age, up_age, N, P_trace, S_trace, F_trace):
         for j in xrange(N):
             P = P_samps[j,a_index_min:a_index_max+1]
             F = F_samps[j,a_index_min:a_index_max+1]
-            S = S_samps[j,a_index_min:a_index_max+1]
+            S = S_samps[j,a_index_min:a_index_max+1]        
     
             factors[i,j] = sum(S * P * F) / sum(S)
             
@@ -269,7 +272,7 @@ def stochastic_known_age_corr_likelihoods(pos, A, fac_array):
     return funs
     
 # FIXME: Don't do age_corr_likelihoods by Monte Carlo, just use finite sums. Consider log-Simpson from the EP algorithm.
-def age_corr_likelihoods(lo_age, up_age, pos, neg, N, P_mesh):
+def age_corr_likelihoods(lo_age, up_age, pos, neg, N, P_mesh, a, P_trace, S_trace, F_trace):
     """
     Returns samples from the log-likelihood p(N|A,P'=P_mesh,r), 
     where A is a MAP-style record array and r[i] is the factor 
@@ -280,7 +283,7 @@ def age_corr_likelihoods(lo_age, up_age, pos, neg, N, P_mesh):
     
     print 'Recomputing likelihood spline representations...'
     # Call to age_corr_factors to get samples from the predictive distribution of r.
-    factors = age_corr_factors(lo_age, up_age, N)
+    factors = age_corr_factors(lo_age, up_age, N, a, P_trace, S_trace, F_trace)
     
     # Allocate work and output arrays.
     N_recs = len(pos)
