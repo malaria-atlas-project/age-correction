@@ -43,7 +43,7 @@ def two_ten_factors(N, P_trace, S_trace, F_trace):
     
     P_samps = P_trace[p_indices]
     F_samps = F_trace[p_indices]
-    S_samps = S_trace[S_indices,0,:]
+    S_samps = S_trace[S_indices]
                 
     for j in xrange(N):
         P = P_samps[j,:]
