@@ -16,8 +16,8 @@
 
 import pymc as pm
 import numpy as np
-from pymc.sandbox import GibbsStepMethods
-from pymc.sandbox.GibbsStepMethods import DirichletMultinomial
+import GibbsStepMethods
+from GibbsStepMethods import DirichletMultinomial
 from numpy import *
 
 __all__ = ['make_model', 'make_MCMC']
