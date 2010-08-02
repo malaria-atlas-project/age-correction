@@ -118,6 +118,7 @@ def age_corr_factors(lo_age, up_age, N, a, P_trace, S_trace, F_trace):
     return factors
 
 def known_age_corr_factors(A,N,P_trace,S_trace,F_trace):
+    """Like age_corr_factors, but with ages known to be A."""
     factors = empty((len(A),N))
     p_indices = random.randint(P_trace.shape[0], size=N)
     S_indices = random.randint(S_trace.shape[0], size=N)

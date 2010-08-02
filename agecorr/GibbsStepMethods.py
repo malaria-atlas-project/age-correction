@@ -272,6 +272,10 @@ class StandardGibbs(Gibbs):
                         (self.__class__.__name__, self.stochastic, self.ld[i])
 
         Gibbs.propose(self)
+        try:
+            self.logp_plus_loglike
+        except ZeroProbability:
+            self.reject()
 
 
     @classmethod

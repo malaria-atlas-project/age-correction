@@ -45,6 +45,9 @@ def find_age_bins(a, a_lo, a_hi):
 def make_model(datasets, a):
     "Datasets should be a list of record arrays with columns [a_lo,a_hi,pos,neg]"
 
+    # Strip out the methods
+    datasets = dict([(k,v[1]) for k,v in datasets.iteritems()])
+
     age_bin_ctrs = {}
     age_slices = {}
     for place in datasets.iterkeys():

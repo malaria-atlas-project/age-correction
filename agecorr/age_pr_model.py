@@ -23,8 +23,14 @@ import numpy as np
 __all__ = ['make_model','make_MCMC']
 
 
-def make_model(datasets, a_pred):
+def make_model(datasets, a_pred, method=None):
     "Datasets should be a list of record arrays with columns [a_lo,a_hi,pos,neg]"
+
+    # Strip out method. Can't learn an overall scale factor here
+    if method is None:
+        datasets = dict([(k,v[1]) for k,v in datasets.iteritems()])
+    else:
+        datasets = dict([(k,v[1]) for k,v in datasets.iteritems() if v[0]==method])
 
     def binom_deviance(n,y,p):
         y_hat = n*p
@@ -154,12 +160,12 @@ def make_model(datasets, a_pred):
     return locals()
 
 
-def make_MCMC(datasets, a_pred, dbname):
-    M = pm.MCMC(make_model(datasets, a_pred), dbname=dbname, db='hdf5', dbcomplevel=1, dbcomplib='zlib')
+def make_MCMC(datasets, a_pred, dbname, method=None):
+    M = pm.MCMC(make_model(datasets, a_pred, method), dbname=dbname, db='hdf5', dbcomplevel=1, dbcomplib='zlib')
     M.use_step_method(pm.AdaptiveMetropolis, [M.p_mean, M.R1, M.R2, M.R3, M.sigma], 
         scales={M.p_mean: .01*ones(7), M.R1: .01*ones(6), M.R2: .01*ones(3), M.R3: .01*ones(3), M.sigma: .01*ones(7)})
 
-    for i in xrange(len(datasets)):
+    for i in xrange(len(M.datasets)):
         M.use_step_method(pm.AdaptiveMetropolis, [M.p_vec_list[i],M.P_prime_list[i]], scales={M.p_vec_list[i]: .001*ones(7), M.P_prime_list[i]: [.001]}, delay=10000)
 
     return M
