@@ -155,7 +155,7 @@ def make_model(datasets, a_pred, method=None):
         """
         A sample from the predictive distribuiton of P.
         """
-        return P_prime * (1.-exp(-b*a)) * F
+        return P_prime * (1.-exp(-b*a))
     
     return locals()
 
