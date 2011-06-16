@@ -74,7 +74,11 @@ def age_corr_factors_from_limits(a_lo, a_hi, N, a, P_trace, S_trace, F_trace):
     for j in xrange(N):
         P = P_trace[p_indices[j],a_index_min:a_index_max+1]
         F = F_trace[p_indices[j],a_index_min:a_index_max+1]
-        S = S_trace[S_indices[j],a_index_min:a_index_max+1]
+        
+        P = (P[:-1]+P[1:])/2.
+        F = (F[:-1]+F[1:])/2.
+        
+        S = S_trace[S_indices[j],a_index_min:a_index_max]
 
         factors[j] = sum(S * P * F) / sum(S)
     return factors
